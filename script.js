@@ -63,25 +63,75 @@ var laneData = {
   }
 };
 
+
+/* ============ STATE ============ */
 var currentLane = null;
 var chat = document.getElementById('chat');
-var stepIndex = 0;
-var TOTAL_STEPS = 12;
 var fixAnswers = {};
 var fixChecked = {};
 var finishChoice = null;
 var finishChecked = false;
 
+/* ============ TURN ENGINE (one exchange on screen at a time) ============
+   The chat never scrolls: each turn REPLACES the previous one. A turn shows
+   the learner's previous reply as a small line (if any), the bot's message(s)
+   and the reply options. `stack` is the path taken (for Back); `transcript`
+   keeps the full conversation in memory. */
+var TURNS = ['welcome','safety','stakes','lane','draft','record',
+             'fix0','fb0','fix1','fb1','fix2','fb2',
+             'finish','finishfb','log','log2','result'];
+var TOTAL_STEPS = TURNS.length;
+var stack = [];
+var transcript = [];
+
 function setProgress(n){
   document.getElementById('progressFill').style.width = Math.min(100, Math.round((n/TOTAL_STEPS)*100)) + '%';
+  document.getElementById('stepCount').textContent = 'Step ' + n + ' of ' + TOTAL_STEPS;
 }
 
-function scrollDown(){
-  window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+function logBot(el){
+  transcript.push({who:'bot', text:(el.textContent || '').replace(/\s+/g,' ').trim()});
 }
 
+function renderTop(isNew){
+  var top = stack[stack.length-1];
+  chat.innerHTML = '';
+  chat.scrollTop = 0;
+  if(top.reply){
+    var line = document.createElement('div');
+    line.className = 'prev-reply';
+    line.innerHTML = '<span class="prev-label">You</span><span class="prev-text"></span>';
+    line.querySelector('.prev-text').textContent = top.reply;
+    chat.appendChild(line);
+  }
+  var idx = TURNS.indexOf(top.t);
+  setProgress(idx + 1);
+  document.getElementById('backBtn').disabled = (stack.length <= 1);
+  TURN_FNS[top.t]();
+  if(isNew){
+    chat.querySelectorAll('.msg.bot .bubble').forEach(logBot);
+  }
+}
+
+function advance(turnName, replyText){
+  if(replyText){ transcript.push({who:'user', text:replyText}); }
+  stack.push({t:turnName, reply:replyText || null});
+  renderTop(true);
+}
+
+function goBack(){
+  if(stack.length <= 1) return;
+  stack.pop();
+  renderTop(false);
+}
+
+function getTranscript(){ return transcript.slice(); }
+
+// legacy accent colours are mapped onto the dark-theme tones: blue = info, warn = caution/partial, ok = correct
+var KICKER_TONES = {'var(--green)':'ok', 'var(--amber)':'warn', 'var(--gold)':'warn'};
 function kickerRow(icon, label, color){
-  return '<div class="kicker-row"><span class="kicon" style="background:'+color+';">'+icon+'</span><span class="klabel" style="color:'+color+';">'+label+'</span></div>';
+  var tone = KICKER_TONES[color] || 'blue';
+  return '<div class="kicker-row tone-'+tone+'"><span class="kicon">'+icon+'</span><span class="klabel">'+label+'</span></div>';
 }
 
 function addBot(html, wide, kind){
@@ -90,275 +140,295 @@ function addBot(html, wide, kind){
   var cls = 'bubble'+(wide?' wide':'')+(kind?' k-'+kind:'');
   msg.innerHTML = '<div class="avatar">'+ICON_BOT+'</div><div class="'+cls+'">'+html+'</div>';
   chat.appendChild(msg);
-  scrollDown();
   return msg;
 }
 
-function addUser(html){
+function addWidget(innerHtml){
   var msg = document.createElement('div');
-  msg.className = 'msg user';
-  msg.innerHTML = '<div class="avatar">'+ICON_USER+'</div><div class="bubble">'+html+'</div>';
+  msg.className = 'msg bot widget';
+  msg.innerHTML = '<div class="avatar">'+ICON_BOT+'</div><div class="bubble">'+innerHtml+'</div>';
   chat.appendChild(msg);
-  scrollDown();
+  return msg;
 }
 
 function addContinue(label, onClick){
   var wrap = document.createElement('div');
   wrap.className = 'continue-wrap';
-  wrap.innerHTML = '<button class="continue-btn">'+(label||'Continue')+' '+ICON_ARROW+'</button>';
-  wrap.querySelector('button').onclick = function(){
-    wrap.remove();
-    onClick();
-  };
+  wrap.innerHTML = '<button type="button" class="continue-btn">'+(label||'Continue')+' '+ICON_ARROW+'</button>';
+  wrap.querySelector('button').onclick = onClick;
   chat.appendChild(wrap);
-  scrollDown();
+  return wrap;
 }
 
-/* ============ STEP FLOW ============ */
-function start(){
-  chat.innerHTML = '';
-  stepIndex = 0;
-  fixAnswers = {};
-  fixChecked = {};
-  finishChoice = null;
-  finishChecked = false;
-  currentLane = null;
-  setProgress(0);
-  step0();
+function recordCardHtml(lane){
+  return '<div class="record-card"><div class="rtitle">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>'+lane.recordTitle+'</div><ul>'+
+    lane.recordItems.map(function(i){return '<li>'+i+'</li>';}).join('') +
+  '</ul></div>';
 }
 
-function step0(){
-  setProgress(1);
-  addBot(
-    kickerRow(ICON_LIGHTBULB, 'Welcome', 'var(--royal)') +
-    '<p>Namaste! Let us learn one important AI skill together.</p><p>Sometimes an AI tool writes wrong facts. Sometimes it forgets to finish the work. Today, you will fix both.</p>',
-    false, 'intro'
-  );
-  addContinue('Let us start', function(){ step1(); });
-}
+/* ============ TURNS ============ */
+var FIX_COLORS = {figure:'var(--teal)', fact:'var(--royal)', claim:'var(--coral)'};
 
-function step1(){
-  setProgress(2);
-  addBot(
-    kickerRow(ICON_SHIELD, 'Safety first', 'var(--gold)') +
-    '<p>One small request before we begin.</p>' +
-    '<div class="never-panel">' +
-      '<div class="never-head">'+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17a1.8 1.8 0 0 0 1.5 2.7h16a1.8 1.8 0 0 0 1.5-2.7L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>' +'Please never type these into an AI tool</div>'+
-      '<div class="never-grid">'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4"/></svg><span>Password</span></div>'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Aadhaar / ID</span></div>'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Phone number</span></div>'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Address</span></div>'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.6c0 5-8.8 11-8.8 11S3.2 13.6 3.2 8.6a4.8 4.8 0 0 1 8.8-2.7 4.8 4.8 0 0 1 8.8 2.7z"/></svg><span>Health info</span></div>'+
-        '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Marks / grades</span></div>'+
-      '</div>'+
-    '</div>' +
-    '<p style="margin-top:8px;">Everything in this lesson is make-believe. Please keep your answers make-believe too.</p>',
-    true, 'caution'
-  );
-  addContinue('I understand', function(){ addUser('I understand. Let us continue.'); step2(); });
-}
+var TURN_FNS = {
+  welcome: function(){
+    addBot(
+      kickerRow(ICON_LIGHTBULB, 'Welcome', 'var(--royal)') +
+      '<p>Namaste! Let us learn one important AI skill together.</p><p>Sometimes an AI tool writes wrong facts. Sometimes it forgets to finish the work. Today, you will fix both.</p>',
+      false, 'intro'
+    );
+    addContinue('Let us start', function(){ advance('safety'); });
+  },
 
-function step2(){
-  setProgress(3);
-  addBot(
-    kickerRow(ICON_TARGET, 'Why this matters', 'var(--purple)') +
-    '<p>Here is why this skill is important.</p>'+
-    '<div class="stakes-mini">'+
-      '<div class="stakes-mini-item"><div class="si" style="background:var(--royal);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div><b>Half-fixed is still wrong</b><span>One correct fix and two mistakes left behind can look safe. But it is not.</span></div></div>'+
-      '<div class="stakes-mini-item"><div class="si" style="background:var(--teal);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div><div><b>An unfinished note can hurt too</b><span>Forgetting to tell the right person about a problem can cause the same harm as a wrong fact.</span></div></div>'+
-      '<div class="stakes-mini-item"><div class="si" style="background:var(--coral);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h3"/></svg></div><div><b>Your record protects you</b><span>A short note of "what changed" answers any question later, in seconds.</span></div></div>'+
-    '</div>',
-    true, 'stakes'
-  );
-  addContinue('Got it', function(){ step3(); });
-}
+  safety: function(){
+    addBot(
+      kickerRow(ICON_SHIELD, 'Safety first', 'var(--gold)') +
+      '<p>One small request before we begin.</p>' +
+      '<div class="never-panel">' +
+        '<div class="never-head">'+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17a1.8 1.8 0 0 0 1.5 2.7h16a1.8 1.8 0 0 0 1.5-2.7L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>' +'Please never type these into an AI tool</div>'+
+        '<div class="never-grid">'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4"/></svg><span>Password</span></div>'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Aadhaar / ID</span></div>'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Phone number</span></div>'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Address</span></div>'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.6c0 5-8.8 11-8.8 11S3.2 13.6 3.2 8.6a4.8 4.8 0 0 1 8.8-2.7 4.8 4.8 0 0 1 8.8 2.7z"/></svg><span>Health info</span></div>'+
+          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Marks / grades</span></div>'+
+        '</div>'+
+      '</div>' +
+      '<p style="margin-top:8px;">Everything in this lesson is make-believe. Please keep your answers make-believe too.</p>',
+      true, 'caution'
+    );
+    addContinue('I understand', function(){ advance('stakes', 'I understand. Let us continue.'); });
+  },
 
-function step3(){
-  setProgress(4);
-  addBot(kickerRow(ICON_TARGET, 'Choose your case', 'var(--teal)') + '<p>Please choose your case. Which one is closer to you?</p>', false, 'record');
-  var msg = document.createElement('div');
-  msg.className = 'msg bot';
-  msg.innerHTML =
-    '<div class="avatar">'+ICON_BOT+'</div>'+
-    '<div class="bubble">'+
+  stakes: function(){
+    addBot(
+      kickerRow(ICON_TARGET, 'Why this matters', 'var(--purple)') +
+      '<p>Here is why this skill is important.</p>'+
+      '<div class="stakes-mini">'+
+        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div><b>Half-fixed is still wrong</b><span>One correct fix and two mistakes left behind can look safe. But it is not.</span></div></div>'+
+        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div><div><b>An unfinished note can hurt too</b><span>Forgetting to tell the right person about a problem can cause the same harm as a wrong fact.</span></div></div>'+
+        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h3"/></svg></div><div><b>Your record protects you</b><span>A short note of "what changed" answers any question later, in seconds.</span></div></div>'+
+      '</div>',
+      true, 'stakes'
+    );
+    addContinue('Got it', function(){ advance('lane'); });
+  },
+
+  lane: function(){
+    addBot(kickerRow(ICON_TARGET, 'Choose your case', 'var(--teal)') + '<p>Please choose your case. Which one is closer to you?</p>', false, 'record');
+    var msg = addWidget(
       '<div class="widget-row">'+
-        '<select class="chat-select" id="laneSelect">'+
+        '<select class="chat-select" id="laneSelect" aria-label="Choose your case">'+
           '<option value="">Choose…</option>'+
           '<option value="iti">ITI · Tool return note</option>'+
           '<option value="higher">Higher education · Submission note</option>'+
         '</select>'+
-        '<button class="go-btn" id="laneGoBtn">Continue '+ICON_ARROW+'</button>'+
-      '</div>'+
-    '</div>';
-  chat.appendChild(msg);
-  scrollDown();
+        '<button type="button" class="go-btn" id="laneGoBtn">Continue '+ICON_ARROW+'</button>'+
+      '</div>'
+    );
+    if(currentLane) document.getElementById('laneSelect').value = currentLane;
+    document.getElementById('laneGoBtn').onclick = function(){
+      var val = document.getElementById('laneSelect').value;
+      if(!val) return;
+      if(currentLane && val !== currentLane){
+        // a different case means different answers: clear the old ones
+        fixAnswers = {}; fixChecked = {}; finishChoice = null; finishChecked = false;
+      }
+      currentLane = val;
+      var label = val === 'iti' ? 'ITI · Tool return note' : 'Higher education · Submission note';
+      advance('draft', label);
+    };
+  },
 
-  document.getElementById('laneGoBtn').onclick = function(){
-    var val = document.getElementById('laneSelect').value;
-    if(!val) return;
-    currentLane = val;
-    var label = val === 'iti' ? 'ITI · Tool return note' : 'Higher education · Submission note';
-    msg.remove();
-    addUser(label);
-    step4();
-  };
-}
+  draft: function(){
+    var lane = laneData[currentLane];
+    addBot(
+      kickerRow(ICON_DOC, 'AI Draft', 'var(--coral)') +
+      '<p>Here is a note written by an AI tool. Please read it once, slowly.</p>'+
+      '<div class="draft-card"><div class="dtitle">'+lane.title+'</div><div class="dtext">'+lane.draftHtml+'</div></div>',
+      true, 'draft'
+    );
+    addContinue('Show me the real record', function(){ advance('record'); });
+  },
 
-function step4(){
-  setProgress(5);
-  var lane = laneData[currentLane];
-  addBot(
-    kickerRow(ICON_DOC, 'AI Draft', 'var(--coral)') +
-    '<p>Here is a note written by an AI tool. Please read it once, slowly.</p>'+
-    '<div class="draft-card"><div class="dtitle">'+lane.title+'</div><div class="dtext">'+lane.draftHtml+'</div></div>',
-    true, 'draft'
-  );
-  addContinue('Show me the real record', function(){ step5(); });
-}
+  record: function(){
+    var lane = laneData[currentLane];
+    addBot(
+      kickerRow(ICON_CLIPBOARD, 'Real Record', 'var(--teal)') +
+      '<p>Good. Now compare it with the real record.</p>'+
+      recordCardHtml(lane),
+      true, 'record'
+    );
+    addContinue('Start correcting', function(){ advance('fix0'); });
+  },
 
-function step5(){
-  setProgress(6);
-  var lane = laneData[currentLane];
-  addBot(
-    kickerRow(ICON_CLIPBOARD, 'Real Record', 'var(--teal)') +
-    '<p>Good. Now compare it with the real record.</p>'+
-    '<div class="record-card"><div class="rtitle">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>'+lane.recordTitle+'</div><ul>'+
-      lane.recordItems.map(function(i){return '<li>'+i+'</li>';}).join('') +
-    '</ul></div>',
-    true, 'record'
-  );
-  addContinue('Start correcting', function(){ step6(0); });
-}
+  fix0: function(){ fixTurn(0); }, fix1: function(){ fixTurn(1); }, fix2: function(){ fixTurn(2); },
+  fb0: function(){ fixFeedbackTurn(0); }, fb1: function(){ fixFeedbackTurn(1); }, fb2: function(){ fixFeedbackTurn(2); },
 
-var FIX_COLORS = {figure:'var(--teal)', fact:'var(--royal)', claim:'var(--coral)'};
-
-function step6(fixIdx){
-  var lane = laneData[currentLane];
-  if(fixIdx >= lane.fixes.length){ step7(); return; }
-  setProgress(6 + fixIdx);
-  var f = lane.fixes[fixIdx];
-  var color = FIX_COLORS[f.id] || 'var(--royal)';
-
-  addBot(
-    kickerRow(ICON_EDIT, 'Correction ' + (fixIdx+1) + ' of ' + lane.fixes.length, color) +
-    '<p><b>'+f.label+'</b></p><p>Look at this line: '+f.phrase+'. Please check the record and type the correct answer.</p>',
-    false, 'fix'
-  );
-
-  var msg = document.createElement('div');
-  msg.className = 'msg bot';
-  msg.innerHTML =
-    '<div class="avatar">'+ICON_BOT+'</div>'+
-    '<div class="bubble" style="width:100%;">'+
-      '<input class="chat-input" id="fixInput-'+f.id+'" placeholder="'+f.placeholder+'">'+
-      '<div class="widget-row"><button class="go-btn" id="fixGoBtn-'+f.id+'">Check my answer '+ICON_CHECK+'</button></div>'+
-    '</div>';
-  chat.appendChild(msg);
-  scrollDown();
-
-  document.getElementById('fixGoBtn-'+f.id).onclick = function(){
-    var val = document.getElementById('fixInput-'+f.id).value.trim();
-    if(val === '') return;
-    fixAnswers[f.id] = val;
-    var matched = f.keywords.some(function(k){ return val.toLowerCase().indexOf(k.toLowerCase()) > -1; });
-    fixChecked[f.id] = matched;
-    msg.remove();
-    addUser(val);
-    if(matched){
-      addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Very good! That matches the record.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'good');
-    } else {
-      addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Almost. Please compare with the record once more.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'soft');
-    }
-    addContinue(fixIdx < lane.fixes.length-1 ? 'Next line' : 'Continue', function(){ step6(fixIdx+1); });
-  };
-}
-
-function step7(){
-  setProgress(9);
-  var lane = laneData[currentLane];
-  addBot(
-    kickerRow(ICON_FLAG, 'Finish it', 'var(--gold)') +
-    '<p>Well done, all three lines are checked. Now, one more thing.</p><p>'+lane.finishQuestion+'</p>',
-    false, 'finish'
-  );
-
-  var msg = document.createElement('div');
-  msg.className = 'msg bot';
-  msg.innerHTML =
-    '<div class="avatar">'+ICON_BOT+'</div>'+
-    '<div class="bubble" style="width:100%;">'+
-      '<select class="chat-select" id="finishSelect" style="width:100%;min-width:0;">'+
+  finish: function(){
+    var lane = laneData[currentLane];
+    addBot(
+      kickerRow(ICON_FLAG, 'Finish it', 'var(--royal)') +
+      '<p>Well done, all three lines are checked. Now, one more thing.</p><p>'+lane.finishQuestion+'</p>',
+      false, 'finish'
+    );
+    addWidget(
+      '<select class="chat-select" id="finishSelect" aria-label="Choose the best ending" style="width:100%;min-width:0;">'+
         '<option value="">Choose the best ending…</option>'+
         lane.finishOptions.map(function(o,i){return '<option value="'+i+'">'+o+'</option>';}).join('')+
       '</select>'+
-      '<div class="widget-row"><button class="go-btn" id="finishGoBtn">Check my ending '+ICON_CHECK+'</button></div>'+
-    '</div>';
-  chat.appendChild(msg);
-  scrollDown();
+      '<div class="widget-row"><button type="button" class="go-btn" id="finishGoBtn">Check my ending '+ICON_CHECK+'</button></div>'
+    );
+    if(finishChoice !== null) document.getElementById('finishSelect').value = String(finishChoice);
+    document.getElementById('finishGoBtn').onclick = function(){
+      var val = document.getElementById('finishSelect').value;
+      if(val === '') return;
+      finishChoice = parseInt(val);
+      finishChecked = true;
+      advance('finishfb', lane.finishOptions[finishChoice]);
+    };
+  },
 
-  document.getElementById('finishGoBtn').onclick = function(){
-    var val = document.getElementById('finishSelect').value;
-    if(val === '') return;
-    finishChoice = parseInt(val);
-    finishChecked = true;
-    msg.remove();
-    addUser(lane.finishOptions[finishChoice]);
+  finishfb: function(){
+    var lane = laneData[currentLane];
     var isRight = (finishChoice === lane.finishCorrect);
     if(isRight){
       addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Correct! That is the missing ending this note needed.</p>', false, 'good');
     } else {
       addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Not this one. The note needed to warn the right person about the real problem.</p><p class="model-line">Best ending: '+lane.finishOptions[lane.finishCorrect]+'</p>', false, 'soft');
     }
-    addContinue('Show my record', function(){ step8(); });
+    addContinue('Show my record', function(){ advance('log'); });
+  },
+
+  /* the record table is split over two turns so it never needs to scroll:
+     1 of 2 = the three corrected lines, 2 of 2 = the closing step */
+  log: function(){
+    var lane = laneData[currentLane];
+    var rows = '';
+    lane.fixes.forEach(function(f){
+      rows += '<tr><td>'+f.phrase+'</td><td>'+escapeHtml(fixAnswers[f.id]||'—')+'</td></tr>';
+    });
+    addBot(
+      kickerRow(ICON_TABLE, 'Your Record · 1 of 2', 'var(--navy)') +
+      '<p>Here is your record. It shows what the AI wrote, and what you corrected.</p>'+
+      logTableHtml(rows),
+      true, 'log'
+    );
+    addContinue('Continue', function(){ advance('log2'); });
+  },
+
+  log2: function(){
+    var lane = laneData[currentLane];
+    var rows = '<tr><td>(note ends without a closing step)</td><td>'+(finishChoice!==null ? lane.finishOptions[finishChoice] : '—')+'</td></tr>';
+    addBot(
+      kickerRow(ICON_TABLE, 'Your Record · 2 of 2', 'var(--navy)') +
+      logTableHtml(rows),
+      true, 'log'
+    );
+    addContinue('See my result', function(){ advance('result'); });
+  },
+
+  result: function(){
+    var lane = laneData[currentLane];
+    var fixesOk = lane.fixes.filter(function(f){ return fixChecked[f.id]; }).length;
+    var finishOk = finishChecked && (finishChoice === lane.finishCorrect);
+    var passed = (fixesOk >= 2 && finishOk);
+    var html =
+      '<div class="result-card '+(passed?'pass':'fail')+'">' +
+        (passed ? ICON_CHECK : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>') +
+        '<h3>'+(passed ? 'Well done! Task complete.' : 'Good try! Please try once more.')+'</h3>'+
+        '<p>Corrections matching the record: '+fixesOk+' out of 3. Closing step: '+(finishOk?'correct':'not yet correct')+'.</p>'+
+        '<p>'+(passed
+          ? 'You corrected the note, finished it properly, and kept a clear record. That clears this gated step.'
+          : 'This step needs at least 2 out of 3 corrections right, and the correct closing step. Please go back and try again.') +
+        '</p>'+
+      '</div>';
+    addBot(html, true);
+    var wrap = document.createElement('div');
+    wrap.className = 'restart-wrap';
+    wrap.innerHTML = '<button type="button" class="restart-btn">'+ICON_REFRESH+' Try again from the start</button>';
+    wrap.querySelector('button').onclick = function(){ start(); };
+    chat.appendChild(wrap);
+  }
+};
+
+function logTableHtml(rows){
+  return '<div class="log-card">'+
+    '<div class="log-legend" aria-hidden="true"><span class="lg-ai">Assistant wrote</span><span class="lg-you">You corrected</span></div>'+
+    '<table><thead><tr><th>Assistant wrote</th><th>You corrected</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+}
+
+function fixTurn(fixIdx){
+  var lane = laneData[currentLane];
+  var f = lane.fixes[fixIdx];
+  var color = FIX_COLORS[f.id] || 'var(--royal)';
+  // The record is no longer on screen above, so the bubble can swap between the
+  // question and the real record (same space, so the open state still fits).
+  var qMsg = addBot(
+    kickerRow(ICON_EDIT, 'Correction ' + (fixIdx+1) + ' of ' + lane.fixes.length, color) +
+    '<div class="fix-q"><p><b>'+f.label+'</b></p><p>Look at this line: '+f.phrase+'. Please check the record and type the correct answer.</p></div>'+
+    '<div class="fix-rec" hidden>'+recordCardHtml(lane)+'</div>',
+    false, 'fix'
+  );
+  var ref = document.createElement('div');
+  ref.className = 'record-toggle';
+  ref.innerHTML = '<button type="button" class="saa-btn-link" aria-expanded="false">'+ICON_CLIPBOARD+'<span>Show the real record</span></button>';
+  var tBtn = ref.querySelector('button');
+  var qPane = qMsg.querySelector('.fix-q'), rPane = qMsg.querySelector('.fix-rec');
+  tBtn.onclick = function(){
+    var open = rPane.hasAttribute('hidden');
+    if(open){ rPane.removeAttribute('hidden'); qPane.setAttribute('hidden',''); }
+    else { qPane.removeAttribute('hidden'); rPane.setAttribute('hidden',''); }
+    tBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    tBtn.querySelector('span').textContent = open ? 'Back to the question' : 'Show the real record';
+  };
+  chat.appendChild(ref);
+
+  addWidget(
+    '<input class="chat-input" id="fixInput-'+f.id+'" maxlength="80" placeholder="'+f.placeholder+'" aria-label="'+f.label+'">'+
+    '<div class="widget-row"><button type="button" class="go-btn" id="fixGoBtn-'+f.id+'">Check my answer '+ICON_CHECK+'</button></div>'
+  );
+  var input = document.getElementById('fixInput-'+f.id);
+  if(fixAnswers[f.id]) input.value = fixAnswers[f.id];
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') document.getElementById('fixGoBtn-'+f.id).click(); });
+  document.getElementById('fixGoBtn-'+f.id).onclick = function(){
+    var val = input.value.trim();
+    if(val === '') return;
+    fixAnswers[f.id] = val;
+    fixChecked[f.id] = f.keywords.some(function(k){ return val.toLowerCase().indexOf(k.toLowerCase()) > -1; });
+    advance('fb'+fixIdx, val);
   };
 }
 
-function step8(){
-  setProgress(10);
+function fixFeedbackTurn(fixIdx){
   var lane = laneData[currentLane];
-  var rows = '';
-  lane.fixes.forEach(function(f){
-    rows += '<tr><td>'+f.phrase+'</td><td>'+(fixAnswers[f.id]||'—')+'</td></tr>';
-  });
-  rows += '<tr><td>(note ends without a closing step)</td><td>'+(finishChoice!==null ? lane.finishOptions[finishChoice] : '—')+'</td></tr>';
-
-  addBot(
-    kickerRow(ICON_TABLE, 'Your Record', 'var(--navy)') +
-    '<p>Here is your record. It shows what the AI wrote, and what you corrected.</p>'+
-    '<div class="log-card"><table><thead><tr><th>Assistant wrote</th><th>You corrected</th></tr></thead><tbody>'+rows+'</tbody></table></div>',
-    true, 'log'
-  );
-  addContinue('See my result', function(){ step9(); });
+  var f = lane.fixes[fixIdx];
+  if(fixChecked[f.id]){
+    addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Very good! That matches the record.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'good');
+  } else {
+    addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Almost. Please compare with the record once more.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'soft');
+  }
+  var nextTurn = fixIdx < lane.fixes.length-1 ? 'fix'+(fixIdx+1) : 'finish';
+  addContinue(fixIdx < lane.fixes.length-1 ? 'Next line' : 'Continue', function(){ advance(nextTurn); });
 }
 
-function step9(){
-  setProgress(12);
-  var lane = laneData[currentLane];
-  var fixesOk = lane.fixes.filter(function(f){ return fixChecked[f.id]; }).length;
-  var finishOk = finishChecked && (finishChoice === lane.finishCorrect);
-  var passed = (fixesOk >= 2 && finishOk);
-
-  var html =
-    '<div class="result-card '+(passed?'pass':'fail')+'">' +
-      (passed ? ICON_CHECK : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>') +
-      '<h3>'+(passed ? 'Well done! Task complete.' : 'Good try! Please try once more.')+'</h3>'+
-      '<p>Corrections matching the record: '+fixesOk+' out of 3. Closing step: '+(finishOk?'correct':'not yet correct')+'.</p>'+
-      '<p>'+(passed
-        ? 'You corrected the note, finished it properly, and kept a clear record. That clears this gated step.'
-        : 'This step needs at least 2 out of 3 corrections right, and the correct closing step. Please go back and try again.') +
-      '</p>'+
-    '</div>';
-
-  addBot(html, true);
-
-  var wrap = document.createElement('div');
-  wrap.className = 'restart-wrap';
-  wrap.innerHTML = '<button class="restart-btn">'+ICON_REFRESH+' Try again from the start</button>';
-  wrap.querySelector('button').onclick = function(){ start(); };
-  chat.appendChild(wrap);
-  scrollDown();
+/* ============ START / INIT ============ */
+function start(){
+  fixAnswers = {};
+  fixChecked = {};
+  finishChoice = null;
+  finishChecked = false;
+  currentLane = null;
+  transcript = [];
+  stack = [{t:'welcome', reply:null}];
+  renderTop(true);
 }
 
-/* ============ INIT ============ */
-document.addEventListener('DOMContentLoaded', start);
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('backBtn').onclick = goBack;
+  start();
+});
