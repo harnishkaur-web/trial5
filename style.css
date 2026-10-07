@@ -464,3 +464,151 @@ input.chat-input{width:100%;}
   .msg.bot:has(.fix-rec:not([hidden])){width:100%;}
   .msg.bot:has(.fix-rec:not([hidden])) .avatar{display:none;}
 }
+
+/* ESL upgrade (game-specific) */
+/* "Your task." lines inside chat bubbles */
+.bubble .saa-do{margin:8px 0 0!important;padding:8px 12px!important;font-size:14.5px;}
+.bubble .saa-do + .saa-kit,.bubble .saa-do + .draft-card,.bubble .saa-do + .record-card{margin-top:10px;}
+/* safety: the 6 "never type" chips sit in one row on desktop so the turn fits 1024x600 */
+@media (min-width:701px){
+  .never-grid{grid-template-columns:repeat(6,1fr);}
+  .never-chip{padding:8px 4px;}
+}
+/* stakes: 3 reveal cards side by side */
+.saa-kit.stakes-kit .saa-cards{grid-template-columns:repeat(3,minmax(0,1fr));}
+@media (max-width:520px){.saa-kit.stakes-kit .saa-cards{grid-template-columns:1fr;}}
+.saa-kit.stakes-kit .saa-card{min-height:118px;}
+@media (min-width:701px) and (max-height:660px){.saa-kit.stakes-kit .saa-card{min-height:108px;}}
+.saa-kit.stakes-kit .saa-front{font-size:15px;}
+.saa-kit.stakes-kit .saa-back{font-size:13.5px;line-height:1.35;padding:10px 12px;}
+/* short desktop windows (1024x600): tighten spacing only, never type size */
+@media (min-width:701px) and (max-height:660px){
+  .chat{gap:8px;}
+  .topbar{padding:9px 16px;margin-bottom:8px;}
+  .saa-header{padding:10px 0 6px;}
+  .draft-card .dtext{line-height:1.65;}
+  .draft-card,.record-card{padding:10px 14px;}
+  .record-card li{margin-bottom:3px;}
+}
+
+/* ==========================================================================
+   Game 14 designer assets (Oct 2026)
+   All new colours are the --g14-* tokens below, so a light/dark theme can
+   override them in one place. Icons are the pack's ivory (dark-theme) set in
+   assets/icons/dark/ (switch folder via G14_ICON_DIR in script.js for light).
+   ========================================================================== */
+:root{
+  --g14-paper:rgba(8,13,36,0.38);      /* register / draft paper */
+  --g14-rule:rgba(255,255,255,0.12);   /* ruled lines */
+  --g14-head:rgba(91,118,255,0.14);    /* register label column, prompt box */
+  --g14-ink:var(--ivory);
+  --g14-ink-2:var(--text);
+  --g14-dim:var(--muted);
+  --g14-accent:var(--blue-light);
+  --g14-accent-line:var(--blue-line-2);
+  --g14-tag-bg:var(--blue-tint);
+  --g14-card:rgba(255,255,255,0.05);
+  --g14-card-on:rgba(91,118,255,0.16);
+  --g14-pick-img:clamp(64px, calc(15vh / var(--z,1)), 120px);
+}
+
+/* screen 1: shared private-data icons on the never-chips (ivory, 24px) */
+.never-chip .g14-ic{width:24px;height:24px;display:block;margin:0 auto 4px;}
+
+/* screen 2: reason icon above each card title */
+.saa-kit.stakes-kit .saa-card{min-height:100px;}
+.saa-kit.stakes-kit .saa-front{gap:4px;}
+.saa-kit.stakes-kit .g14-card-ic{width:24px;height:24px;display:block;flex:0 0 auto;}
+.saa-kit.stakes-kit .g14-ft{display:block;}
+
+/* screen 3: character case picker */
+.g14-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.case-pick{appearance:none;font:inherit;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;
+  background:var(--g14-card);border:1px solid var(--line-2);border-radius:14px;padding:8px 14px 8px 8px;color:var(--g14-ink);min-height:44px;}
+.case-pick img{width:var(--g14-pick-img);height:var(--g14-pick-img);object-fit:contain;flex:0 0 auto;}
+.case-pick span{font-size:15px;font-weight:600;line-height:1.35;}
+.case-pick:hover{border-color:var(--g14-accent-line);}
+.case-pick[aria-pressed="true"]{background:var(--g14-card-on);border-color:var(--g14-accent);box-shadow:inset 0 0 0 1px var(--g14-accent);}
+.g14-pick-go{justify-content:flex-end;}
+
+/* screen 4: draft inside the AI-tool frame */
+.g14-draft{background:var(--g14-paper);}
+.g14-draft-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-bottom:8px;font-size:13px;font-weight:700;color:var(--g14-ink);}
+.g14-bot{width:24px;height:24px;flex:0 0 auto;}
+.bubble p.g14-prompt{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin:0 0 0 auto;padding:4px 12px;border-radius:10px;background:var(--g14-head);font-size:14px;font-weight:500;color:var(--g14-ink);}
+.g14-draft .g14-draft-head .dtitle{margin:0;}
+.g14-draft .dtext{line-height:1.75;}
+.g14-prompt b{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--g14-dim);font-weight:700;}
+
+/* screen 5 + "Show the real record": ruled paper register */
+.g14-register{background:var(--g14-paper);border-color:var(--g14-accent-line);}
+.g14-reg-head{display:flex;align-items:center;justify-content:space-between;gap:6px 10px;flex-wrap:wrap;margin-bottom:6px;}
+.g14-reg-head .rtitle{margin-bottom:0;}
+.g14-tag{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--g14-accent);background:var(--g14-tag-bg);border:1px solid var(--blue-line);border-radius:6px;padding:3px 8px;white-space:nowrap;}
+table.g14-reg{width:100%;border-collapse:collapse;font-size:14px;}
+.g14-reg th,.g14-reg td{border:1px solid var(--g14-rule);padding:5px 10px;text-align:left;vertical-align:top;line-height:1.4;}
+.g14-reg th{width:32%;background:var(--g14-head);color:var(--g14-ink);font-weight:600;}
+.g14-reg td{color:var(--g14-ink-2);}
+
+/* screen 6: check-type icon in each correction kicker (20px) */
+.kicker-row .kicon:has(.g14-kic){width:28px;height:28px;}
+.kicker-row .kicon .g14-kic{width:20px;height:20px;display:block;}
+.fix-rec .g14-register{padding:10px 14px;}
+
+/* screen 7 feedback: unfinished note -> the right person (after the answer only) */
+.g14-finish{display:flex;width:fit-content;max-width:100%;align-items:center;gap:12px;margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--g14-paper);border:1px solid var(--g14-rule);}
+.g14-fn-note{display:flex;flex-direction:column;gap:5px;width:150px;flex:0 0 auto;padding:9px 11px;border-radius:9px;border:1px solid var(--g14-rule);background:var(--g14-card);}
+.g14-fn-note i{display:block;height:2px;border-radius:2px;background:var(--g14-dim);opacity:.6;}
+.g14-fn-note i:nth-child(2){width:85%;}
+.g14-fn-note b{font-size:12.5px;color:var(--g14-accent);border-bottom:2px dotted var(--g14-accent);padding-bottom:2px;margin-top:2px;}
+.g14-fn-arrow svg{width:28px;height:28px;color:var(--g14-accent);display:block;}
+.g14-fn-person{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.g14-fn-person svg{width:30px;height:30px;color:var(--g14-ink);}
+.g14-fn-person b{font-size:13px;color:var(--g14-ink);}
+
+@media (min-width:701px) and (max-height:660px){
+  /* short desktop: icon sits left of the title so the cards stay low */
+  .saa-kit.stakes-kit .saa-card{min-height:78px;}
+  .saa-kit.stakes-kit .saa-front{display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-content:center;}
+  .saa-kit.stakes-kit .g14-card-ic{grid-row:span 2;}
+  .saa-kit.stakes-kit .saa-front::after{grid-column:2;}
+  .g14-reg th,.g14-reg td{padding:4px 10px;}
+  .fix-rec .g14-reg th,.fix-rec .g14-reg td{padding:2px 10px;}
+  .fix-rec .g14-reg-head{margin-bottom:4px;}
+  .g14-draft .dtext{line-height:1.55;}
+  .g14-draft-head{margin-bottom:4px;}
+}
+@media (max-width:520px){
+  .saa-kit.stakes-kit .saa-card{min-height:80px;}
+  .saa-kit.stakes-kit .saa-front{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:2px;align-content:center;}
+  .saa-kit.stakes-kit .g14-card-ic{grid-row:span 2;}
+  .saa-kit.stakes-kit .saa-front::after{grid-column:2;}
+  .g14-picker{gap:8px;}
+  .case-pick{flex-direction:column;text-align:center;padding:10px 8px;gap:6px;}
+  .case-pick span{font-size:14px;}
+  .g14-pick-go{justify-content:stretch;}
+  .g14-reg th{width:38%;}
+}
+/* Game 14 assets: short phones (e.g. 375x667) - tighten the new pieces, never type size */
+@media (max-width:480px) and (max-height:720px){
+  .never-chip .g14-ic{width:20px;height:20px;margin-bottom:2px;}
+  :root{--g14-pick-img:64px;}
+  .case-pick{padding:6px 8px;gap:4px;}
+  .g14-reg th,.g14-reg td{padding:3px 8px;}
+  .g14-reg-head{margin-bottom:4px;}
+  .g14-draft-head{margin-bottom:4px;}
+  .g14-draft .dtext{line-height:1.6;}
+  .g14-finish{margin-top:6px;padding:8px 10px;}
+  /* no room on very short phones: the prompt line and the tag step aside */
+  .bubble .g14-draft p.g14-prompt,.g14-tag{display:none;}
+}
+
+/* ===== QA fixes (4 Oct 2026) ===== */
+/* A tall turn scrolls inside the chat instead of sliding under the title card or the footer.
+   "safe center" keeps short turns centred and starts tall ones at the top. */
+.chat{overflow-y:auto;overflow-x:hidden;justify-content:safe center;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding-bottom:4px}
+.chat > *{flex-shrink:0}
+/* short line under an input when the learner taps a button too early */
+.g14-need{margin:8px 0 0;padding:7px 12px;border-radius:10px;background:rgba(255,184,77,.12);border:1px solid rgba(255,184,77,.45);color:#FFD9A0;font-size:13.5px;font-weight:600;line-height:1.4}
+.g14-need[hidden]{display:none}
+.g14-count{display:block;text-align:right;font-size:12px;color:var(--muted);margin-top:4px}

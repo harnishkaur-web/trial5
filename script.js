@@ -13,23 +13,42 @@ var ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 var ICON_FLAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M5 4h11l-2 4 2 4H5"/></svg>';
 var ICON_TABLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>';
 
+/* Game 14 designer assets (Oct 2026): line icons from the asset pack.
+   The game is dark, so the ivory set is used. The pack also has a light twin
+   (navy lines) for each icon: a light theme only needs to change this folder. */
+var G14_ICON_DIR = 'assets/icons/dark/';
+function g14Icon(name, cls){
+  return '<img class="'+(cls||'g14-ic')+'" src="'+G14_ICON_DIR+name+'.webp" alt="" aria-hidden="true">';
+}
+/* check-type icon for each correction kicker (Figure / Fact / Source) */
+var FIX_ICONS = {figure:'icon-figure', fact:'icon-fact', claim:'icon-source'};
+
 /* ============ LANE DATA ============ */
 var laneData = {
   iti: {
     title: "Tool Return Note",
+    prompt: "Write a tool return note for Batch 3B.",
+    pickerLabel: "ITI · Tool return note",
+    character: "assets/char-iti-trainee.webp",
     draftHtml: 'All <span class="wrong">12 trainees</span> from Batch 3B gave back their tools today. The tool register shows every item is present, and <span class="wrong">no damage was reported</span>. This batch has <span class="wrong">finished all practical hours needed for this term</span>.',
     recordTitle: "The real store register (end of day)",
     recordItems: [
-      "Tools returned: 11 out of 12. One hand drill is still missing.",
+      "Trainees who returned tools: 11 out of 12. One hand drill is still missing.",
       "Condition note: one drill bit is worn. It is marked for replacement.",
       "Practical hours: this batch is 2 hours short for the term."
     ],
     fixes: [
-      {id:'figure', label:'Line 1 — the number of trainees', phrase:'"12 trainees" gave back their tools', placeholder:'Type the correct number…', keywords:['11'], model:"11 trainees gave back their tools. One hand drill is still missing."},
-      {id:'fact', label:'Line 2 — damage report', phrase:'"no damage was reported"', placeholder:'Type what the register really says…', keywords:['worn','damage','drill bit'], model:"One drill bit is worn and marked for replacement."},
-      {id:'claim', label:'Line 3 — practical hours', phrase:'"finished all practical hours needed"', placeholder:'Type what is really true…', keywords:['short','not finish','2 hour','incomplete'], model:"This batch is 2 hours short of the required practical hours."}
+      {id:'figure', label:'Line 1: the number of trainees', phrase:'"12 trainees" gave back their tools', placeholder:'Type the correct number…', keywords:['11'],
+       num:['11','eleven'], model:"11 trainees gave back their tools. One hand drill is still missing."},
+      {id:'fact', label:'Line 2: the damage report', phrase:'"no damage was reported"', placeholder:'Type what the register really says…', keywords:['worn','damage','drill bit'],
+       pos:/\bworn\b|drill\s*bit|\bdamage|\breplace/i,
+       neg:[/\bno\s+(\w+\s+)?damage/i, /\bnot\s+(been\s+)?(damaged|worn)/i, /\bundamaged\b/i, /\bnothing\s+(\w+\s+)?(worn|damaged|broken)/i, /\bgood\s+condition/i, /\bno\s+(tool|drill|item)s?\s+(is|are|was|were)\s+(worn|damaged)/i], model:"One drill bit is worn and marked for replacement."},
+      {id:'claim', label:'Line 3: the practical hours', phrase:'"finished all practical hours needed"', placeholder:'Type what is really true…', keywords:['short','not finish','2 hour','incomplete'],
+       pos:/\bshort\b|\bnot\s+(yet\s+)?(finish|finished|complete|completed|done)\b|n't\s+(yet\s+)?(finish|finished|complete|completed)\b|\bincomplete\b|\bunfinished\b|\b(2|two)\s+(more\s+)?hours?\b|\bstill\s+needs?\b/i,
+       neg:[/\bnot\s+(\w+\s+)?short\b/i, /n't\s+(\w+\s+)?short\b/i, /\bno\s+hours?\s+(short|left|missing)/i],
+       claims:[/\bfinished\s+all\b/i, /\bcompleted?\s+all\b/i, /\ball\s+(the\s+)?(practical\s+)?hours\s+(are|were|is)\s+(done|complete|completed|finished)/i], model:"This batch is 2 hours short of the required practical hours."}
     ],
-    finishQuestion: "This note stops here. It does not say what to do next. What should the note add?",
+    finishQuestion: "The note stops here and does not say what to do next. What should the note add?",
     finishOptions: [
       "Nothing. The note is fine as it is.",
       "Tell the store in-charge about the missing tool and the worn drill bit before the register closes.",
@@ -40,6 +59,9 @@ var laneData = {
   },
   higher: {
     title: "Assignment Submission Note",
+    prompt: "Write a submission note for the Data Structures course.",
+    pickerLabel: "Higher education · Submission note",
+    character: "assets/char-college-student.webp",
     draftHtml: 'All <span class="wrong">45 students</span> in the Data Structures course submitted on time. Every submission was checked by the plagiarism tool, and <span class="wrong">no issues were found</span>. This <span class="wrong">completes all pending coursework for the semester</span>.',
     recordTitle: "The real submission log",
     recordItems: [
@@ -48,14 +70,20 @@ var laneData = {
       "Remaining coursework: one more assignment is still due next week."
     ],
     fixes: [
-      {id:'figure', label:'Line 1 — number of students', phrase:'"45 students" submitted', placeholder:'Type the correct number…', keywords:['42'], model:"42 students submitted. Three are still pending."},
-      {id:'fact', label:'Line 2 — plagiarism check', phrase:'"no issues were found"', placeholder:'Type what was really found…', keywords:['flagged','review','issue'], model:"One submission was flagged for manual review."},
-      {id:'claim', label:'Line 3 — pending coursework', phrase:'"completes all pending coursework"', placeholder:'Type what is really true…', keywords:['due','next week','not complete','one more','1 more'], model:"One more assignment is still due next week. Coursework is not complete yet."}
+      {id:'figure', label:'Line 1: the number of students', phrase:'"45 students" submitted', placeholder:'Type the correct number…', keywords:['42'],
+       num:['42','forty-two','forty two'], model:"42 students submitted. 3 students have not submitted yet."},
+      {id:'fact', label:'Line 2: the plagiarism check', phrase:'"no issues were found"', placeholder:'Type what was really found…', keywords:['flagged','review','issue'],
+       pos:/\bflag|\breview|\bissues?\b|\bproblems?\b|\bcopied\b|\bcopy\b|\bsuspicious\b|\bcheck(ed)?\s+again/i,
+       neg:[/\bno\s+(\w+\s+)?(issues?|problems?|flags?)\b/i, /\bnot\s+(been\s+)?flagged/i, /\bnothing\s+(\w+\s+)?(found|flagged|wrong)/i, /\bclean\b/i, /\bwithout\s+(any\s+)?(issues?|problems?)/i, /\b(all|every)\s+(\w+\s+)?(passed|clear|fine)/i], model:"One submission was flagged for manual review."},
+      {id:'claim', label:'Line 3: the pending coursework', phrase:'"completes all pending coursework"', placeholder:'Type what is really true…', keywords:['due','next week','not complete','one more','1 more'],
+       pos:/\bdue\b|next\s+week|\bnot\s+(yet\s+)?(complete|completed|finished|done|over)\b|n't\s+(yet\s+)?(complete|completed|finished|done|over)\b|\bincomplete\b|\b(one|1)\s+more\b|\bpending\b|\bremaining\b|\bstill\b|\bleft\b/i,
+       neg:[/\bnothing\s+(\w+\s+)?(pending|due|left|remaining)/i, /\bno\s+(more\s+)?(assignments?|coursework|work)\s+(\w+\s+)?(due|pending|left|remaining)/i],
+       claims:[/\bcompletes?\s+all\b/i, /\bcompleted\s+all\b/i, /\ball\s+(\w+\s+)?coursework\s+(is\s+)?(complete|completed|done|finished)/i], model:"One more assignment is still due next week. Coursework is not complete yet."}
     ],
-    finishQuestion: "This note stops here. It does not say what to do next. What should the note add?",
+    finishQuestion: "The note stops here and does not say what to do next. What should the note add?",
     finishOptions: [
       "Nothing. The note is fine as it is.",
-      "Follow up with the 3 students who have not submitted, and send the flagged submission to the coordinator.",
+      "Contact the 3 students who have not submitted, and send the flagged submission to the coordinator.",
       "Say well done to the class for finishing early.",
       "Plan next semester's coursework."
     ],
@@ -108,9 +136,26 @@ function renderTop(isNew){
   setProgress(idx + 1);
   document.getElementById('backBtn').disabled = (stack.length <= 1);
   TURN_FNS[top.t]();
+  markNarration();
   if(isNew){
     chat.querySelectorAll('.msg.bot .bubble').forEach(logBot);
   }
+}
+
+/* Narration markers (Oct 2026): the main bot message of each turn is the
+   narrated "screen" (a new element per turn), its bubble is the lead, and only
+   the stable lines in it are read: the bot's text, the never-list, the AI draft,
+   the record, the feedback lines and the fixed result lines. Kicker labels,
+   learner answers, buttons, inputs and the changing score line are not read. */
+var SAY_SEL = '.bubble > p, .never-panel, .fix-q > p, .draft-card .dtitle, .draft-card .dtext, ' +
+              '.record-card .rtitle, .record-card table, .result-card h3, .result-card p:last-child';
+function markNarration(){
+  var m = chat.querySelector('.msg.bot:not(.widget)');
+  if(!m) return;
+  var b = m.querySelector('.bubble');
+  m.setAttribute('data-saa-page', '');
+  b.setAttribute('data-saa-lead', '');
+  b.querySelectorAll(SAY_SEL).forEach(function(e){ e.setAttribute('data-saa-say', ''); });
 }
 
 function advance(turnName, replyText){
@@ -160,10 +205,18 @@ function addContinue(label, onClick){
   return wrap;
 }
 
+/* Game 14 designer assets (Oct 2026): the record is drawn as a ruled paper
+   register (pack look) with the game's own three lines, word for word. Each
+   line "Label: text" becomes one register row: label | text. */
 function recordCardHtml(lane){
-  return '<div class="record-card"><div class="rtitle">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>'+lane.recordTitle+'</div><ul>'+
-    lane.recordItems.map(function(i){return '<li>'+i+'</li>';}).join('') +
-  '</ul></div>';
+  return '<div class="record-card g14-register"><div class="g14-reg-head"><div class="rtitle">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>'+lane.recordTitle+'</div><span class="g14-tag">Made-up record</span></div>'+
+    '<table class="g14-reg"><tbody>'+
+    lane.recordItems.map(function(i){
+      var c = i.indexOf(':');
+      var t = i.slice(c+1).trim(); t = t.charAt(0).toUpperCase() + t.slice(1);
+      return c > 0 ? '<tr><th scope="row">'+i.slice(0,c)+'</th><td>'+t+'</td></tr>' : '<tr><td colspan="2">'+i+'</td></tr>';
+    }).join('') +
+  '</tbody></table></div>';
 }
 
 /* ============ TURNS ============ */
@@ -173,7 +226,7 @@ var TURN_FNS = {
   welcome: function(){
     addBot(
       kickerRow(ICON_LIGHTBULB, 'Welcome', 'var(--royal)') +
-      '<p>Namaste! Let us learn one important AI skill together.</p><p>Sometimes an AI tool writes wrong facts. Sometimes it forgets to finish the work. Today, you will fix both.</p>',
+      '<p>Namaste! Today you will learn one important AI skill.</p><p>An AI tool can write wrong facts, and it can forget to finish the work. Today, you will fix both problems.</p>',
       false, 'intro'
     );
     addContinue('Let us start', function(){ advance('safety'); });
@@ -182,19 +235,19 @@ var TURN_FNS = {
   safety: function(){
     addBot(
       kickerRow(ICON_SHIELD, 'Safety first', 'var(--gold)') +
-      '<p>One small request before we begin.</p>' +
+      '<p>Please keep your personal details safe.</p>' +
       '<div class="never-panel">' +
-        '<div class="never-head">'+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17a1.8 1.8 0 0 0 1.5 2.7h16a1.8 1.8 0 0 0 1.5-2.7L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>' +'Please never type these into an AI tool</div>'+
+        '<div class="never-head">'+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 17a1.8 1.8 0 0 0 1.5 2.7h16a1.8 1.8 0 0 0 1.5-2.7L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>' +'Never type these details into an AI tool.</div>'+
         '<div class="never-grid">'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4"/></svg><span>Password</span></div>'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Aadhaar / ID</span></div>'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Phone number</span></div>'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Address</span></div>'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.6c0 5-8.8 11-8.8 11S3.2 13.6 3.2 8.6a4.8 4.8 0 0 1 8.8-2.7 4.8 4.8 0 0 1 8.8 2.7z"/></svg><span>Health info</span></div>'+
-          '<div class="never-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Marks / grades</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-password')+'<span>Password</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-aadhaar')+'<span>Aadhaar or ID</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-phone')+'<span>Phone number</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-address')+'<span>Address</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-health')+'<span>Health details</span></div>'+
+          '<div class="never-chip">'+g14Icon('icon-private-marks')+'<span>Marks and grades</span></div>'+
         '</div>'+
       '</div>' +
-      '<p style="margin-top:8px;">Everything in this lesson is make-believe. Please keep your answers make-believe too.</p>',
+      '<p style="margin-top:8px;">Everything in this lesson is made up. Please keep your own answers made up too.</p>',
       true, 'caution'
     );
     addContinue('I understand', function(){ advance('stakes', 'I understand. Let us continue.'); });
@@ -203,39 +256,60 @@ var TURN_FNS = {
   stakes: function(){
     addBot(
       kickerRow(ICON_TARGET, 'Why this matters', 'var(--purple)') +
-      '<p>Here is why this skill is important.</p>'+
-      '<div class="stakes-mini">'+
-        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div><b>Half-fixed is still wrong</b><span>One correct fix and two mistakes left behind can look safe. But it is not.</span></div></div>'+
-        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div><div><b>An unfinished note can hurt too</b><span>Forgetting to tell the right person about a problem can cause the same harm as a wrong fact.</span></div></div>'+
-        '<div class="stakes-mini-item"><div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h3"/></svg></div><div><b>Your record protects you</b><span>A short note of "what changed" answers any question later, in seconds.</span></div></div>'+
+      '<p>This skill matters for 3 reasons.</p>'+
+      '<p class="do saa-do"><b class="saa-do-label">Your task.</b> Tap each card to read one reason.</p>'+
+      '<div class="saa-kit stakes-kit" data-kit="reveal" data-required>'+
+        '<div class="saa-cards">'+
+          '<button class="saa-card" type="button"><span class="saa-front">'+g14Icon('icon-half-fixed','g14-card-ic')+'<span class="g14-ft">Half-fixed is still wrong</span></span><span class="saa-back">A note with 1 fix and 2 mistakes can look safe. It is still not safe.</span></button>'+
+          '<button class="saa-card" type="button"><span class="saa-front">'+g14Icon('icon-unfinished','g14-card-ic')+'<span class="g14-ft">An unfinished note can hurt</span></span><span class="saa-back">The note may forget to tell the right person about a problem. This causes the same harm as a wrong fact.</span></button>'+
+          '<button class="saa-card" type="button"><span class="saa-front">'+g14Icon('icon-record','g14-card-ic')+'<span class="g14-ft">Your record protects you</span></span><span class="saa-back">A short note of what you changed answers any question later. It takes only seconds.</span></button>'+
+        '</div>'+
       '</div>',
       true, 'stakes'
     );
-    addContinue('Got it', function(){ advance('lane'); });
+    var go = addContinue('Continue', function(){
+      var kit = chat.querySelector('.stakes-kit');
+      if(kit && !kit.classList.contains('is-done')){
+        needMsg(go.querySelector('button'), 'Open all 3 cards first.');
+        kit.querySelectorAll('.saa-card:not(.open)').forEach(function(c){ c.classList.add('saa-nudge'); setTimeout(function(){ c.classList.remove('saa-nudge'); }, 2600); });
+        return;
+      }
+      advance('lane');
+    });
   },
 
   lane: function(){
-    addBot(kickerRow(ICON_TARGET, 'Choose your case', 'var(--teal)') + '<p>Please choose your case. Which one is closer to you?</p>', false, 'record');
+    addBot(kickerRow(ICON_TARGET, 'Choose your case', 'var(--teal)') + '<p>Which case is closer to your own life?</p>'+'<p class="do saa-do"><b class="saa-do-label">Your task.</b> Choose your case, then tap Continue.</p>', false, 'record');
+    /* Game 14 designer assets (Oct 2026): two character cards replace the dropdown.
+       Labels stay live text; the choice feeds the same Continue handler as before. */
+    var picked = currentLane || '';
     var msg = addWidget(
-      '<div class="widget-row">'+
-        '<select class="chat-select" id="laneSelect" aria-label="Choose your case">'+
-          '<option value="">Choose…</option>'+
-          '<option value="iti">ITI · Tool return note</option>'+
-          '<option value="higher">Higher education · Submission note</option>'+
-        '</select>'+
+      '<div class="g14-picker" role="group" aria-label="Choose your case">'+
+        ['iti','higher'].map(function(k){
+          return '<button type="button" class="case-pick" data-lane="'+k+'" aria-pressed="'+(picked===k)+'">'+
+            '<img src="'+laneData[k].character+'" alt="" aria-hidden="true"><span>'+laneData[k].pickerLabel+'</span></button>';
+        }).join('')+
+      '</div>'+
+      '<div class="widget-row g14-pick-go">'+
         '<button type="button" class="go-btn" id="laneGoBtn">Continue '+ICON_ARROW+'</button>'+
       '</div>'
     );
-    if(currentLane) document.getElementById('laneSelect').value = currentLane;
+    msg.classList.add('g14-pick-msg');
+    msg.querySelectorAll('.case-pick').forEach(function(b){
+      b.onclick = function(){
+        picked = b.getAttribute('data-lane');
+        msg.querySelectorAll('.case-pick').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      };
+    });
     document.getElementById('laneGoBtn').onclick = function(){
-      var val = document.getElementById('laneSelect').value;
-      if(!val) return;
+      var val = picked;
+      if(!val){ needMsg(document.getElementById('laneGoBtn').parentNode, 'Choose a case first.'); return; }
       if(currentLane && val !== currentLane){
         // a different case means different answers: clear the old ones
         fixAnswers = {}; fixChecked = {}; finishChoice = null; finishChecked = false;
       }
       currentLane = val;
-      var label = val === 'iti' ? 'ITI · Tool return note' : 'Higher education · Submission note';
+      var label = laneData[val].pickerLabel;
       advance('draft', label);
     };
   },
@@ -243,9 +317,16 @@ var TURN_FNS = {
   draft: function(){
     var lane = laneData[currentLane];
     addBot(
-      kickerRow(ICON_DOC, 'AI Draft', 'var(--coral)') +
-      '<p>Here is a note written by an AI tool. Please read it once, slowly.</p>'+
-      '<div class="draft-card"><div class="dtitle">'+lane.title+'</div><div class="dtext">'+lane.draftHtml+'</div></div>',
+      kickerRow(ICON_DOC, 'AI draft', 'var(--coral)') +
+      '<p>An AI tool wrote this note for you.</p>'+
+      '<p class="do saa-do"><b class="saa-do-label">Your task.</b> Read the note slowly and look at the 3 red parts.</p>'+
+      /* Game 14 designer assets (Oct 2026): the draft sits in the AI-tool frame
+         (practice-bot avatar, "AI tool · draft", the learner's prompt). Draft text is the game's own. */
+      '<div class="draft-card g14-draft">'+
+        '<div class="g14-draft-head"><img class="g14-bot" src="assets/logo-swiftchat-32.webp" alt="AI tool" title="AI tool · draft">'+
+          '<div class="dtitle">'+lane.title+'</div>'+
+          '<p class="g14-prompt"><b>Your prompt</b><span>'+lane.prompt+'</span></p></div>'+
+        '<div class="dtext">'+lane.draftHtml+'</div></div>',
       true, 'draft'
     );
     addContinue('Show me the real record', function(){ advance('record'); });
@@ -254,8 +335,9 @@ var TURN_FNS = {
   record: function(){
     var lane = laneData[currentLane];
     addBot(
-      kickerRow(ICON_CLIPBOARD, 'Real Record', 'var(--teal)') +
-      '<p>Good. Now compare it with the real record.</p>'+
+      kickerRow(ICON_CLIPBOARD, 'Real record', 'var(--teal)') +
+      '<p>Good. Now look at the real record.</p>'+
+      '<p class="do saa-do"><b class="saa-do-label">Your task.</b> Read the 3 lines, because you will use them to fix the note.</p>'+
       recordCardHtml(lane),
       true, 'record'
     );
@@ -269,7 +351,7 @@ var TURN_FNS = {
     var lane = laneData[currentLane];
     addBot(
       kickerRow(ICON_FLAG, 'Finish it', 'var(--royal)') +
-      '<p>Well done, all three lines are checked. Now, one more thing.</p><p>'+lane.finishQuestion+'</p>',
+      '<p>Well done. You checked all 3 lines.</p><p>'+lane.finishQuestion+'</p>'+'<p class="do saa-do"><b class="saa-do-label">Your task.</b> Choose the best ending, then tap Check my ending.</p>',
       false, 'finish'
     );
     addWidget(
@@ -282,9 +364,10 @@ var TURN_FNS = {
     if(finishChoice !== null) document.getElementById('finishSelect').value = String(finishChoice);
     document.getElementById('finishGoBtn').onclick = function(){
       var val = document.getElementById('finishSelect').value;
-      if(val === '') return;
+      if(val === ''){ needMsg(document.getElementById('finishGoBtn').parentNode, 'Choose an ending first.'); return; }
       finishChoice = parseInt(val);
       finishChecked = true;
+      if(window.SAA_SFX){ if(finishChoice === lane.finishCorrect){ SAA_SFX.correct && SAA_SFX.correct(); } else { SAA_SFX.wrong && SAA_SFX.wrong(); } }
       advance('finishfb', lane.finishOptions[finishChoice]);
     };
   },
@@ -293,9 +376,9 @@ var TURN_FNS = {
     var lane = laneData[currentLane];
     var isRight = (finishChoice === lane.finishCorrect);
     if(isRight){
-      addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Correct! That is the missing ending this note needed.</p>', false, 'good');
+      addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Yes. This ending tells the right person about the real problem.</p>' + finishDiagramHtml(), false, 'good');
     } else {
-      addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Not this one. The note needed to warn the right person about the real problem.</p><p class="model-line">Best ending: '+lane.finishOptions[lane.finishCorrect]+'</p>', false, 'soft');
+      addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Not quite. The note must tell the right person about the real problem.</p><p class="model-line">The best ending is: '+lane.finishOptions[lane.finishCorrect]+'</p>' + finishDiagramHtml(), false, 'soft');
     }
     addContinue('Show my record', function(){ advance('log'); });
   },
@@ -309,8 +392,8 @@ var TURN_FNS = {
       rows += '<tr><td>'+f.phrase+'</td><td>'+escapeHtml(fixAnswers[f.id]||'—')+'</td></tr>';
     });
     addBot(
-      kickerRow(ICON_TABLE, 'Your Record · 1 of 2', 'var(--navy)') +
-      '<p>Here is your record. It shows what the AI wrote, and what you corrected.</p>'+
+      kickerRow(ICON_TABLE, 'Your record · 1 of 2', 'var(--navy)') +
+      '<p>This is your record. It shows what the AI tool wrote and what you corrected.</p>'+
       logTableHtml(rows),
       true, 'log'
     );
@@ -319,9 +402,10 @@ var TURN_FNS = {
 
   log2: function(){
     var lane = laneData[currentLane];
-    var rows = '<tr><td>(note ends without a closing step)</td><td>'+(finishChoice!==null ? lane.finishOptions[finishChoice] : '—')+'</td></tr>';
+    var rows = '<tr><td>The note had no closing step.</td><td>'+(finishChoice!==null ? lane.finishOptions[finishChoice] : '—')+'</td></tr>';
     addBot(
-      kickerRow(ICON_TABLE, 'Your Record · 2 of 2', 'var(--navy)') +
+      kickerRow(ICON_TABLE, 'Your record · 2 of 2', 'var(--navy)') +
+      '<p>This row shows the closing step that you chose for the note.</p>'+
       logTableHtml(rows),
       true, 'log'
     );
@@ -336,11 +420,11 @@ var TURN_FNS = {
     var html =
       '<div class="result-card '+(passed?'pass':'fail')+'">' +
         (passed ? ICON_CHECK : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>') +
-        '<h3>'+(passed ? 'Well done! Task complete.' : 'Good try! Please try once more.')+'</h3>'+
-        '<p>Corrections matching the record: '+fixesOk+' out of 3. Closing step: '+(finishOk?'correct':'not yet correct')+'.</p>'+
+        '<h3>'+(passed ? 'Well done. You completed the task.' : 'Good try. Please try once more.')+'</h3>'+
+        '<p>You got '+fixesOk+' out of 3 corrections right. Your closing step '+(finishOk?'is correct':'is not correct yet')+'.</p>'+
         '<p>'+(passed
-          ? 'You corrected the note, finished it properly, and kept a clear record. That clears this gated step.'
-          : 'This step needs at least 2 out of 3 corrections right, and the correct closing step. Please go back and try again.') +
+          ? 'You corrected the note, finished it and kept a clear record. You passed this gated step.'
+          : 'To pass, you need at least 2 out of 3 corrections right and the correct closing step. Please try again.') +
         '</p>'+
       '</div>';
     addBot(html, true);
@@ -352,10 +436,21 @@ var TURN_FNS = {
   }
 };
 
+/* Game 14 designer assets (Oct 2026): "diag-finish-note" rebuilt as live HTML
+   (note with a dotted "Next step: ?" line -> arrow -> the right person).
+   Shown only AFTER the learner has chosen an ending, so it never hints the answer. */
+function finishDiagramHtml(){
+  return '<figure class="g14-finish" role="img" aria-label="A note with an empty last line, Next step, with an arrow to the right person.">'+
+    '<span class="g14-fn-note" aria-hidden="true"><i></i><i></i><i></i><b>Next step: ?</b></span>'+
+    '<span class="g14-fn-arrow" aria-hidden="true">'+ICON_ARROW+'</span>'+
+    '<span class="g14-fn-person" aria-hidden="true">'+ICON_USER+'<b>the right person</b></span>'+
+  '</figure>';
+}
+
 function logTableHtml(rows){
   return '<div class="log-card">'+
-    '<div class="log-legend" aria-hidden="true"><span class="lg-ai">Assistant wrote</span><span class="lg-you">You corrected</span></div>'+
-    '<table><thead><tr><th>Assistant wrote</th><th>You corrected</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    '<div class="log-legend" aria-hidden="true"><span class="lg-ai">AI tool wrote</span><span class="lg-you">You corrected</span></div>'+
+    '<table><thead><tr><th>AI tool wrote</th><th>You corrected</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 
 function escapeHtml(s){
@@ -369,8 +464,8 @@ function fixTurn(fixIdx){
   // The record is no longer on screen above, so the bubble can swap between the
   // question and the real record (same space, so the open state still fits).
   var qMsg = addBot(
-    kickerRow(ICON_EDIT, 'Correction ' + (fixIdx+1) + ' of ' + lane.fixes.length, color) +
-    '<div class="fix-q"><p><b>'+f.label+'</b></p><p>Look at this line: '+f.phrase+'. Please check the record and type the correct answer.</p></div>'+
+    kickerRow(FIX_ICONS[f.id] ? g14Icon(FIX_ICONS[f.id], 'g14-kic') : ICON_EDIT, 'Correction ' + (fixIdx+1) + ' of ' + lane.fixes.length, color) +
+    '<div class="fix-q"><p><b>'+f.label+'</b></p><p>The AI note says '+f.phrase+'.</p><p class="do saa-do"><b class="saa-do-label">Your task.</b> Check the real record and type the correct fact.</p></div>'+
     '<div class="fix-rec" hidden>'+recordCardHtml(lane)+'</div>',
     false, 'fix'
   );
@@ -389,7 +484,7 @@ function fixTurn(fixIdx){
   chat.appendChild(ref);
 
   addWidget(
-    '<input class="chat-input" id="fixInput-'+f.id+'" maxlength="80" placeholder="'+f.placeholder+'" aria-label="'+f.label+'">'+
+    '<input class="chat-input" id="fixInput-'+f.id+'" maxlength="160" placeholder="'+f.placeholder+'" aria-label="'+f.label+'">'+
     '<div class="widget-row"><button type="button" class="go-btn" id="fixGoBtn-'+f.id+'">Check my answer '+ICON_CHECK+'</button></div>'
   );
   var input = document.getElementById('fixInput-'+f.id);
@@ -397,20 +492,63 @@ function fixTurn(fixIdx){
   input.addEventListener('keydown', function(e){ if(e.key === 'Enter') document.getElementById('fixGoBtn-'+f.id).click(); });
   document.getElementById('fixGoBtn-'+f.id).onclick = function(){
     var val = input.value.trim();
-    if(val === '') return;
+    if(val.length < 2){ needMsg(document.getElementById('fixGoBtn-'+f.id).parentNode, 'Type your answer first.'); input.focus(); return; }
     fixAnswers[f.id] = val;
-    fixChecked[f.id] = f.keywords.some(function(k){ return val.toLowerCase().indexOf(k.toLowerCase()) > -1; });
+    fixChecked[f.id] = checkFix(f, val);
+    if(window.SAA_SFX){ if(fixChecked[f.id]){ SAA_SFX.correct && SAA_SFX.correct(); } else { SAA_SFX.wrong && SAA_SFX.wrong(); } }
     advance('fb'+fixIdx, val);
   };
+}
+
+/* QA fix (Oct 2026): the answer must state the real fact, not repeat the AI's wrong claim.
+   - figure: the first number written must be the real one ("12 trainees, not 11" fails).
+   - fact / claim: it must use the record's fact and must not say the AI's wrong claim
+     (a claim only counts as repeated when no "not / no / never" stands just before it). */
+function negatedAt(v, idx){
+  var before = v.slice(Math.max(0, idx - 24), idx).toLowerCase();
+  return /\b(not|no|never|isn't|hasn't|doesn't|didn't|wasn't|haven't|cannot|can't)\b[^.]*$/.test(before);
+}
+function checkFix(f, val){
+  var v = ' ' + val.toLowerCase().replace(/\s+/g, ' ') + ' ';
+  if(f.num){
+    var m = v.match(/\d+|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|forty[- ]two|forty[- ]five)\b/);
+    var first = m ? m[0] : '';
+    if(f.num.indexOf(first) < 0) return false;
+    if(new RegExp('\\b(not|no)\\s+(only\\s+)?' + f.num[0] + '\\b').test(v)) return false;
+    return true;
+  }
+  if(!f.pos.test(v)) return false;
+  if((f.neg || []).some(function(r){ return r.test(v); })) return false;
+  var claimed = (f.claims || []).some(function(r){
+    var g = new RegExp(r.source, 'gi'), mm;
+    while((mm = g.exec(v))){ if(!negatedAt(v, mm.index)) return true; }
+    return false;
+  });
+  return !claimed;
+}
+
+function needMsg(after, text){
+  var host = after.parentNode;
+  var el = host.querySelector('.g14-need');
+  if(!el){
+    el = document.createElement('p');
+    el.className = 'g14-need saa-vo-skip';
+    el.setAttribute('role', 'status');
+    after.insertAdjacentElement('afterend', el);
+  }
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(el._t); el._t = setTimeout(function(){ el.hidden = true; }, 4000);
+  try { el.scrollIntoView({block:'nearest'}); } catch(e){}
 }
 
 function fixFeedbackTurn(fixIdx){
   var lane = laneData[currentLane];
   var f = lane.fixes[fixIdx];
   if(fixChecked[f.id]){
-    addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Very good! That matches the record.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'good');
+    addBot(kickerRow(ICON_CHECK, 'Nice work', 'var(--green)') + '<p class="feedback-good">Yes. Your answer matches the fact in the real record.</p><p class="model-line">Here is a full answer: '+f.model+'</p>', false, 'good');
   } else {
-    addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Almost. Please compare with the record once more.</p><p class="model-line">Full answer: '+f.model+'</p>', false, 'soft');
+    addBot(kickerRow(ICON_TARGET, 'Almost there', 'var(--amber)') + '<p class="feedback-soft">Not quite. Your answer does not use the fact from the real record. You can tap Back to try again.</p><p class="model-line">Here is a full answer: '+f.model+'</p>', false, 'soft');
   }
   var nextTurn = fixIdx < lane.fixes.length-1 ? 'fix'+(fixIdx+1) : 'finish';
   addContinue(fixIdx < lane.fixes.length-1 ? 'Next line' : 'Continue', function(){ advance(nextTurn); });
